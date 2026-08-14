@@ -28,12 +28,21 @@
 
 import React, {useCallback, useMemo, useSyncExternalStore} from 'react';
 import {NodeResolver, effect, getValue, peekValue, type SurfaceModel} from '@a2ui/web_core/v0_9';
-import type {ReactComponentImplementation} from './adapter';
+import type {ReactCatalogComponent} from './adapter';
+import {useA2UI} from './core/A2UIProvider';
+import {prepareUniversalCatalog} from './catalog/prepare_universal_catalog';
 import {LoadingPlaceholder, NodeSurfaceContext, NodeView} from './node-view';
 
 export const A2uiSurface: React.FC<{
-  surface: SurfaceModel<ReactComponentImplementation>;
+  surface: SurfaceModel<ReactCatalogComponent>;
 }> = ({surface}) => {
+  const {useUniversalComponents} = useA2UI();
+  useMemo(() => {
+    if (useUniversalComponents && surface.catalog) {
+      prepareUniversalCatalog(surface.catalog);
+    }
+  }, [useUniversalComponents, surface.catalog]);
+
   // The resolver is created inside subscribe, which React calls only for
   // committed renders: a render that is discarded (concurrent mode,
   // Suspense) never constructs one, and every constructed resolver is
@@ -42,7 +51,7 @@ export const A2uiSurface: React.FC<{
   // The factory reads nothing; the dependency exists to reset the box when
   // the surface is swapped.
   const box = useMemo(
-    () => ({resolver: undefined as NodeResolver<ReactComponentImplementation> | undefined}),
+    () => ({resolver: undefined as NodeResolver<ReactCatalogComponent> | undefined}),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [surface],
   );
