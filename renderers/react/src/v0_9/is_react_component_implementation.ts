@@ -14,16 +14,19 @@
  * limitations under the License.
  */
 
-export * from './A2uiSurface';
-export * from './adapter';
-export {useSignalValue, type NodeBuildChild, type NodeViewProps} from './node-view';
-export {
-  A2UIProvider,
-  useA2UI,
-  type A2UIProviderProps,
-  type A2UIContextValue,
-  A2UIContext,
-} from './core/A2UIProvider';
+import type {ReactComponentImplementation} from './adapter';
 
-// Export basic catalog components directly for 3P developers
-export * from './catalog/basic';
+/**
+ * Type guard to check if an API or component implementation is a ReactComponentImplementation.
+ *
+ * @internal
+ */
+export function isReactComponentImplementation(api: unknown): api is ReactComponentImplementation {
+  return (
+    typeof api === 'object' &&
+    api !== null &&
+    !Array.isArray(api) &&
+    'render' in api &&
+    typeof (api as {render: unknown}).render === 'function'
+  );
+}
