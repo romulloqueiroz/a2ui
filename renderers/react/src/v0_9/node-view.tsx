@@ -17,6 +17,7 @@
 import type React from 'react';
 import {
   createContext,
+  memo,
   useCallback,
   useContext,
   useEffect,
@@ -307,3 +308,74 @@ export function useNodeView(
   }
   return {viewProps, context, viewBuildChild, rawBuildChild};
 }
+
+/** Renders an implementation that has no `view`: its wrapper binds itself. */
+const RenderFallback: React.FC<{
+  node: ComponentNode<ReactComponentImplementation>;
+  impl: ReactComponentImplementation;
+  buildChild: NodeBuildChild;
+}> = ({node, impl, buildChild}) => {
+  // `render` reads raw component ids from the model, not the tokens the
+  // conversion puts in view props, so it resolves through the raw-id map.
+  const {context, rawBuildChild} = useNodeView(node, buildChild);
+  const Render = impl.render;
+  if (!context) {
+    return <LoadingPlaceholder componentId={node.componentId} />;
+  }
+  return <Render context={context} buildChild={rawBuildChild} />;
+};
+
+export const NodeView = memo(
+  ({
+    surface,
+    node,
+  }: {
+    surface: SurfaceModel<ReactComponentImplementation>;
+    node: ComponentNode<ReactComponentImplementation>;
+  }) => {
+    const buildChild = useCallback<NodeBuildChild>(
+      (child, basePath) => {
+        if (isComponentNode(child)) {
+          return <NodeView key={child.instanceId} surface={surface} node={child} />;
+        }
+        // The resolver turns every child reference it can identify into a
+        // node, so a leftover id was never classified. Distinguish the two
+        // causes a catalog author can actually have.
+        const requested = basePath ?? node.dataPath;
+        const detail = surface.componentsModel.get(child)
+          ? 'the component exists, but the catalog schema does not mark the referencing ' +
+            'property as a component id. Use componentId() or childList() from ' +
+            '@a2ui/web_core.'
+          : 'no component with this id exists on the surface.';
+        return (
+          <UnresolvedChildReference
+            key={JSON.stringify([child, requested])}
+            surface={surface}
+            id={child}
+            requestedPath={requested}
+            detail={detail}
+          />
+        );
+      },
+      [surface, node],
+    );
+
+    if (node.state === 'unknown-type') {
+      return <div style={{color: 'red'}}>Unknown component type: {node.type}</div>;
+    }
+    if (node.isPlaceholder) {
+      return <LoadingPlaceholder componentId={node.componentId} />;
+    }
+    const impl = node.impl;
+    if (!impl) {
+      // Type narrowing; unreachable for a resolved node.
+      return null;
+    }
+    const View = impl.view;
+    if (!View) {
+      return <RenderFallback node={node} impl={impl} buildChild={buildChild} />;
+    }
+    return <View node={node} buildChild={buildChild} />;
+  },
+);
+NodeView.displayName = 'NodeView';
